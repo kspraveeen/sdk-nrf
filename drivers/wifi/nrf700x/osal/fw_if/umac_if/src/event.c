@@ -681,6 +681,16 @@ static enum wifi_nrf_status umac_event_rf_test_process(struct wifi_nrf_fmac_dev_
 		"Best XO value is = %d\n",
 		rf_get_xo_value_params.xo_value);
 		break;
+	case NRF_WIFI_RF_TEST_EVENT_PERIPHERAL_REG:
+		status = hal_rpu_mem_read(fmac_dev_ctx->hal_dev_ctx,
+					  fmac_dev_ctx->rf_test_cap_data,
+					  RPU_MEM_RF_TEST_CAP_BASE,
+					  fmac_dev_ctx->rf_test_cap_sz);	
+					  
+		wifi_nrf_osal_log_err(fmac_dev_ctx->fpriv->opriv,
+		"dahgfcgdau = %d\n");			  
+					  
+		break;			  
 	default:
 		break;
 	}

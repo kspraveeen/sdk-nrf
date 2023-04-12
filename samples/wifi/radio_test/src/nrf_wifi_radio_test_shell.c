@@ -1725,6 +1725,65 @@ out:
 	return ret;
 }
 
+static int nrf_wifi_radio_read_wlan_reg(const struct shell *shell,
+					  size_t argc,
+					  const char *argv[])
+{
+	enum wifi_nrf_status status = WIFI_NRF_STATUS_FAIL;
+
+	int ret = -ENOEXEC;
+
+	if (!check_test_in_prog(shell)) {
+		goto out;
+	}
+	
+	signed int *rx_cap_buf = NULL;
+	
+	rx_cap_buf = k_calloc((600 * 4),
+			      sizeof(signed int));
+
+	if (!rx_cap_buf) {
+		shell_fprintf(shell,
+			      SHELL_ERROR,
+			      "%s: Unable to allocate (%d) bytes for RX capture\n",
+			      __func__,
+			      (600 * 4));
+		goto out;
+	}	
+
+	ctx->rf_test_run = true;
+	ctx->rf_test = NRF_WIFI_RF_TEST_READ_PERIPHERAL_REG;
+
+	status = nrf_wifi_fmac_rf_test_read_wlan_reg(ctx->rpu_ctx,rx_cap_buf);
+
+	if (status != WIFI_NRF_STATUS_SUCCESS) {
+		shell_fprintf(shell,
+			      SHELL_ERROR,
+			      "nrf_wifi_fmac_rf_test_read_wlan_reg programming failed\n");
+		goto out;
+	}
+
+	shell_fprintf(shell,
+		      SHELL_INFO,
+		      "************* RF register read ***********\n");
+
+	for (unsigned int i = 0; i < (600); i++) {
+		shell_fprintf(shell,
+				SHELL_INFO,
+				"%X\n",
+				rx_cap_buf[i]);
+	}
+
+	ret = 0;
+out:
+	if (rx_cap_buf)
+		k_free(rx_cap_buf);
+
+	ctx->rf_test_run = false;
+	ctx->rf_test = NRF_WIFI_RF_TEST_MAX;
+
+	return ret;
+}
 
 static int nrf_wifi_radio_test_show_cfg(const struct shell *shell,
 					size_t argc,
@@ -2236,6 +2295,12 @@ SHELL_STATIC_SUBCMD_SET_CREATE(
 		      NULL,
 		      "Experimental",
 		      nrf_wifi_radio_comp_opt_xo_val,
+		      1,
+		      0),
+	SHELL_CMD_ARG(read_wlan_reg,
+		      NULL,
+		      "Experimental",
+		      nrf_wifi_radio_read_wlan_reg,
 		      1,
 		      0),
 	SHELL_CMD_ARG(show_config,

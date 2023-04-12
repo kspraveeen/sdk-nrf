@@ -1391,6 +1391,54 @@ enum wifi_nrf_status nrf_wifi_fmac_rf_test_compute_xo(struct wifi_nrf_fmac_dev_c
 		status = WIFI_NRF_STATUS_FAIL;
 		goto out;
 	}
+out:
+	return status;
+}
+enum wifi_nrf_status nrf_wifi_fmac_rf_test_read_wlan_reg(struct wifi_nrf_fmac_dev_ctx *fmac_dev_ctx,void *cap_data)
+{
+	enum wifi_nrf_status status = WIFI_NRF_STATUS_FAIL;
+	struct nrf_wifi_rf_read_wlan_reg rf_read_wlan_reg;
+	unsigned int count = 0;
+
+	wifi_nrf_osal_mem_set(fmac_dev_ctx->fpriv->opriv,
+			      &rf_read_wlan_reg,
+			      0,
+			      sizeof(rf_read_wlan_reg));
+
+	rf_read_wlan_reg.test = NRF_WIFI_RF_TEST_READ_PERIPHERAL_REG;
+
+	fmac_dev_ctx->rf_test_type = NRF_WIFI_RF_TEST_READ_PERIPHERAL_REG;
+	fmac_dev_ctx->rf_test_cap_data = cap_data;
+	fmac_dev_ctx->rf_test_cap_sz = 600;	
+
+	status = umac_cmd_prog_rf_test(fmac_dev_ctx,
+					   &rf_read_wlan_reg,
+					   sizeof(rf_read_wlan_reg));
+
+	if (status != WIFI_NRF_STATUS_SUCCESS) {
+		wifi_nrf_osal_log_err(fmac_dev_ctx->fpriv->opriv,
+				      "%s: umac_cmd_prog_rf_get_xo_value failed\n",
+				      __func__);
+
+		goto out;
+	}
+
+	do {
+		wifi_nrf_osal_sleep_ms(fmac_dev_ctx->fpriv->opriv,
+				       100);
+		count++;
+	} while ((fmac_dev_ctx->rf_test_type != NRF_WIFI_RF_TEST_MAX) &&
+		 (count < WIFI_NRF_FMAC_RF_TEST_EVNT_TIMEOUT));
+
+	if (count == WIFI_NRF_FMAC_RF_TEST_EVNT_TIMEOUT) {
+		wifi_nrf_osal_log_err(fmac_dev_ctx->fpriv->opriv,
+				      "%s: Timed out\n",
+				      __func__);
+		fmac_dev_ctx->rf_test_type = NRF_WIFI_RF_TEST_MAX;
+		fmac_dev_ctx->rf_test_cap_data = NULL;
+		status = WIFI_NRF_STATUS_FAIL;
+		goto out;
+	}
 
 out:
 	return status;

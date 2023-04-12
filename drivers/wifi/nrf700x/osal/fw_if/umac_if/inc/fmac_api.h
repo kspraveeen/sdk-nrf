@@ -212,6 +212,9 @@ enum wifi_nrf_status nrf_wifi_fmac_rf_get_rf_rssi(struct wifi_nrf_fmac_dev_ctx *
  */
 enum wifi_nrf_status nrf_wifi_fmac_set_xo_val(struct wifi_nrf_fmac_dev_ctx *fmac_dev_ctx,
 					      unsigned char value);
+						  
+enum wifi_nrf_status nrf_wifi_fmac_rf_test_read_wlan_reg(struct wifi_nrf_fmac_dev_ctx *fmac_dev_ctx,void *cap_data);
+						  
 
 /**
  * nrf_wifi_fmac_rf_test_compute_optimal_xo_val() - Get XO calibrated value.
@@ -224,6 +227,7 @@ enum wifi_nrf_status nrf_wifi_fmac_set_xo_val(struct wifi_nrf_fmac_dev_ctx *fmac
  *              Pass : %WIFI_NRF_STATUS_SUCCESS
  *              Error: %WIFI_NRF_STATUS_FAIL
  */
+enum wifi_nrf_status nrf_wifi_fmac_rf_test_compute_xo(struct wifi_nrf_fmac_dev_ctx *fmac_dev_ctx);
 enum wifi_nrf_status nrf_wifi_fmac_rf_test_compute_xo(struct wifi_nrf_fmac_dev_ctx *fmac_dev_ctx);
 #else
 

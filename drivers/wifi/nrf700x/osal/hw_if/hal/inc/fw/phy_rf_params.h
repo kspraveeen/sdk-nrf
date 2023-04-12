@@ -102,6 +102,7 @@ enum nrf_wifi_rf_test {
 	NRF_WIFI_RF_TEST_GET_TEMPERATURE,
 	NRF_WIFI_RF_TEST_XO_CALIB,
 	NRF_WIFI_RF_TEST_XO_TUNE,
+	NRF_WIFI_RF_TEST_READ_PERIPHERAL_REG,
 	NRF_WIFI_RF_TEST_MAX,
 };
 
@@ -115,6 +116,8 @@ enum nrf_wifi_rf_test_event {
 	NRF_WIFI_RF_TEST_EVENT_SLEEP,
 	NRF_WIFI_RF_TEST_EVENT_TEMP_MEAS,
 	NRF_WIFI_RF_TEST_EVENT_XO_CALIB,
+	NRF_WIFI_RF_TEST_EVENT_XO_TUNE,
+	NRF_WIFI_RF_TEST_EVENT_PERIPHERAL_REG,
 	NRF_WIFI_RF_TEST_EVENT_MAX,
 };
 
@@ -219,6 +222,10 @@ struct nrf_wifi_rf_get_xo_value {
 
 	/* Optimal XO value computed. */
 	unsigned char xo_value;
+} __NRF_WIFI_PKD;
+
+struct nrf_wifi_rf_read_wlan_reg {
+	unsigned char test;
 } __NRF_WIFI_PKD;
 
 #endif /* CONFIG_NRF700X_RADIO_TEST */
