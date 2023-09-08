@@ -446,6 +446,7 @@ enum wifi_nrf_status wifi_nrf_fmac_rf_params_get(struct wifi_nrf_fmac_dev_ctx *f
 {
 	enum wifi_nrf_status status = WIFI_NRF_STATUS_FAIL;
 	struct wifi_nrf_fmac_otp_info otp_info;
+	unsigned int ft_prog_ver;
 	int ret = -1;
 
 	if (!fmac_dev_ctx || !rf_params) {
@@ -467,6 +468,16 @@ enum wifi_nrf_status wifi_nrf_fmac_rf_params_get(struct wifi_nrf_fmac_dev_ctx *f
 	if (status != WIFI_NRF_STATUS_SUCCESS) {
 		wifi_nrf_osal_log_err(fmac_dev_ctx->fpriv->opriv,
 				      "%s: Fetching of RPU OTP information failed\n",
+				      __func__);
+		goto out;
+	}
+
+	status = wifi_nrf_hal_otp_ft_prog_ver_get(fmac_dev_ctx->hal_dev_ctx,
+						  &ft_prog_ver);
+
+	if (status != WIFI_NRF_STATUS_SUCCESS) {
+		wifi_nrf_osal_log_err(fmac_dev_ctx->fpriv->opriv,
+				      "%s: Fetching of FT program version failed\n",
 				      __func__);
 		goto out;
 	}
@@ -495,6 +506,11 @@ enum wifi_nrf_status wifi_nrf_fmac_rf_params_get(struct wifi_nrf_fmac_dev_ctx *f
 				      (char *)otp_info.info.calib + OTP_OFF_CALIB_XO,
 				      OTP_SZ_CALIB_XO);
 
+	}
+
+	ft_prog_ver = (ft_prog_ver & FT_PROG_VER_MASK) >> 16;
+
+	if (ft_prog_ver == 2) {
 	}
 
 	status = WIFI_NRF_STATUS_SUCCESS;

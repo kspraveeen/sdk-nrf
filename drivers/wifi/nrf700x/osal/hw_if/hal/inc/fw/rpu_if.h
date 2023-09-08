@@ -347,6 +347,7 @@ static const struct rpu_addr_map RPU_ADDR_MAP_MCU[] = {
 #define OTP_ENABLE_PATTERN 0x50FA50FA
 #define OTP_INVALID 0xDEADBEEF
 
+#define FT_PROG_VER_MASK 0xF0000
 
 /**
  * struct nrf_wifi_rpu_pwr_data - Data that host may want to read from the Power IP.
