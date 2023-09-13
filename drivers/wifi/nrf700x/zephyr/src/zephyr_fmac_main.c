@@ -55,6 +55,14 @@ struct wifi_nrf_drv_priv_zep rpu_drv_priv_zep;
 #define TOTAL_RX_SIZE \
 	(CONFIG_NRF700X_RX_NUM_BUFS * CONFIG_NRF700X_RX_MAX_DATA_SIZE)
 
+#if defined(CONFIG_BOARD_NRF7002DK_NRF7001_NRF5340_CPUAPP) || \
+	defined(CONFIG_BOARD_NRF7002DK_NRF5340_CPUAPP)
+
+        //#define NRF_TXPWR_PROP(x) DT_PROP(DT_NODELABEL(perf_tune_label), x)
+#endif
+
+#define NRF_TXPWR_PROP(x) DT_PROP(DT_NODELABEL(perf_tune_label), x)
+
 BUILD_ASSERT(CONFIG_NRF700X_MAX_TX_TOKENS >= 1,
 	"At least one TX token is required");
 BUILD_ASSERT(CONFIG_NRF700X_MAX_TX_AGGREGATION <= 15,
@@ -443,6 +451,24 @@ enum wifi_nrf_status wifi_nrf_fmac_dev_add_zep(struct wifi_nrf_drv_priv_zep *drv
 	tx_pwr_ctrl_params.band_edge_5g_unii_3_hi = CONFIG_NRF700X_BAND_UNII_3_UPPER_EDGE_BACKOFF;
 	tx_pwr_ctrl_params.band_edge_5g_unii_4_lo = CONFIG_NRF700X_BAND_UNII_4_LOWER_EDGE_BACKOFF;
 	tx_pwr_ctrl_params.band_edge_5g_unii_4_hi = CONFIG_NRF700X_BAND_UNII_4_UPPER_EDGE_BACKOFF;
+
+#if defined(CONFIG_BOARD_NRF7002DK_NRF7001_NRF5340_CPUAPP) || \
+	defined(CONFIG_BOARD_NRF7002DK_NRF5340_CPUAPP)
+		//tx_pwr_ctrl_params.max_pwr_2g_dsss = DT_N_S_perf_tune_node_P_max_pwr_2g_dsss;//NRF_TXPWR_PROP(max_pwr_2g_dsss);
+		tx_pwr_ctrl_params.max_pwr_2g_dsss = DT_PROP(DT_NODELABEL(perf_tune_label), max_pwr_2g_dsss);
+		tx_pwr_ctrl_params.max_pwr_2g_mcs7 = DT_PROP(DT_NODELABEL(perf_tune_label), max_pwr_2g_mcs7);
+		tx_pwr_ctrl_params.max_pwr_2g_mcs0 = DT_PROP(DT_NODELABEL(perf_tune_label), max_pwr_2g_mcs0);
+#endif
+#if defined(CONFIG_BOARD_NRF7002DK_NRF5340_CPUAPP)
+		tx_pwr_ctrl_params.max_pwr_5g_low_mcs7 = DT_PROP(DT_NODELABEL(perf_tune_label), max_pwr_5g_low_mcs7);
+		tx_pwr_ctrl_params.max_pwr_5g_mid_mcs7 = DT_PROP(DT_NODELABEL(perf_tune_label), max_pwr_5g_mid_mcs7);
+		tx_pwr_ctrl_params.max_pwr_5g_high_mcs7 = DT_PROP(DT_NODELABEL(perf_tune_label), max_pwr_5g_high_mcs7);
+		tx_pwr_ctrl_params.max_pwr_5g_low_mcs0 = DT_PROP(DT_NODELABEL(perf_tune_label), max_pwr_5g_low_mcs0);
+		tx_pwr_ctrl_params.max_pwr_5g_mid_mcs0 = DT_PROP(DT_NODELABEL(perf_tune_label), max_pwr_5g_mid_mcs0);
+		tx_pwr_ctrl_params.max_pwr_5g_high_mcs0 = DT_PROP(DT_NODELABEL(perf_tune_label), max_pwr_5g_high_mcs0);
+#endif
+
+
 
 #ifdef CONFIG_NRF700X_RADIO_TEST
 	status = wifi_nrf_fmac_dev_init_rt(rpu_ctx_zep->rpu_ctx,

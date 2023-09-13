@@ -767,6 +767,24 @@ struct nrf_wifi_tx_pwr_ctrl_params {
 	unsigned char band_edge_5g_unii_4_lo;
 	/** Transmit power backoff (in dB) for upper edge of UNII-4 frequency band */
 	unsigned char band_edge_5g_unii_4_hi;
+	/** Maximum power permitted while transmitting DSSS rates in 2.4G band */
+	unsigned char max_pwr_2g_dsss;
+	/** Maximum power permitted while transmitting MCS0 rate in 2.4G band */
+	unsigned char max_pwr_2g_mcs0;
+	/** Maximum power permitted while transmitting MCS7 rate in 2.4G band */
+	unsigned char max_pwr_2g_mcs7;
+	/** Maximum power permitted while transmitting MCS0 rate in 5G lowband */
+	unsigned char max_pwr_5g_low_mcs0;
+	/** Maximum power permitted while transmitting MCS7 rate in 5G lowband */
+	unsigned char max_pwr_5g_low_mcs7;
+	/** Maximum power permitted while transmitting MCS0 rate in 5G midband */
+	unsigned char max_pwr_5g_mid_mcs0;
+	/** Maximum power permitted while transmitting MCS7 rate in 5G midband */
+	unsigned char max_pwr_5g_mid_mcs7;
+	/** Maximum power permitted while transmitting MCS0 rate in 5G highband */
+	unsigned char max_pwr_5g_high_mcs0;
+	/** Maximum power permitted while transmitting MCS7 rate in 5G highband */
+	unsigned char max_pwr_5g_high_mcs7;
 } __NRF_WIFI_PKD;
 
 /**
