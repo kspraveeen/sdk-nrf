@@ -10,6 +10,7 @@
 
 #ifdef CONFIG_NRF71_RADIO_TEST
 #include <radio_test/main.h>
+#include <vtf_monitoring/vtf_monitoring.h>
 #else
 #include <fmac_main.h>
 #include <util.h>
@@ -341,7 +342,6 @@ enum nrf_wifi_status nrf_wifi_radio_test_conf_init(struct rpu_conf_params *conf_
 #ifdef CONFIG_NRF71_RADIO_TEST
 	{
 		unsigned int rf_params_tmp[NUM_WIFI_PARAMS];
-		unsigned int vtf_addr_tmp;
 
 		status = nrf_wifi_fmac_config_rf_params(ctx->rpu_ctx, rf_params_tmp);
 		if (status != NRF_WIFI_STATUS_SUCCESS) {
@@ -350,13 +350,11 @@ enum nrf_wifi_status nrf_wifi_radio_test_conf_init(struct rpu_conf_params *conf_
 		memcpy(conf_params->rf_params_addr, rf_params_tmp,
 		       sizeof(conf_params->rf_params_addr));
 
-		status = nrf_wifi_fmac_config_vtf_params(ctx->rpu_ctx,
-							 243, 25, 0,
-							 &vtf_addr_tmp);
-		if (status != NRF_WIFI_STATUS_SUCCESS) {
-			goto out;
-		}
-		conf_params->vtf_buffer_addr = vtf_addr_tmp;
+		/* Point at live VTF snapshots maintained by vtf_monitoring. */
+		conf_params->vtf_buffer_addr =
+			(unsigned int)&vtf_snapshots[VTF_CH_BATTERY_VOLTAGE];
+		printk("VTF buffer addr: 0x%08x (&vtf_snapshots[%d])\n",
+		       conf_params->vtf_buffer_addr, VTF_CH_BATTERY_VOLTAGE);
 	}
 #else
 	status = nrf_wifi_rt_fmac_rf_params_get(
