@@ -171,6 +171,24 @@ config NRF_WIFI_LP_RX
 	depends on NRF_WIFI_LOW_POWER
 	help
 	  Enable low power RX in the LMAC tuning parameters sent to the RPU.
+	  This also enables beacon early termination, the two are used
+	  together: the RF is kept in RX only mode between TBTTs and is
+	  switched to TRX mode from the beacon ISR when the TIM indicates
+	  buffered data.
+
+config NRF_WIFI_BET
+	bool "Beacon early termination with the normal sleep mode"
+	depends on NRF_WIFI_LOW_POWER
+	depends on !NRF_WIFI_LP_RX
+	help
+	  Enable beacon early termination without low power RX, that is, on
+	  top of the normal (HW_SLEEP_ENABLE) sleep mode. The RF stays in TRX
+	  mode, so the RF mode switch of NRF_WIFI_LP_RX is not used. The RPU
+	  aborts the beacon reception right after the TIM IE and sleeps for
+	  the remainder of the beacon whenever no data is buffered for the
+	  device, and receives the beacon in full otherwise.
+	  NRF_WIFI_LP_RX already implies beacon early termination, so this
+	  option is only for running it with the normal sleep mode.
 
 config NRF71_TCP_IP_CHECKSUM_OFFLOAD
 	bool "TCP/IP checksum offload"

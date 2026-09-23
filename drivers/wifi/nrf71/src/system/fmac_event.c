@@ -13,6 +13,8 @@
 #include <zephyr/init.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/sys/sys_io.h>
+#include <zephyr/sys/util.h>
 #include <common/fw_if/nrf71_wifi_ctrl.h>
 #include <common/log_cfg.h>
 
@@ -377,6 +379,166 @@ static void log_error_stats(const char *func,
 	LOG_INF("%s: %s error stats: status_code=%u", func, type,
 			       status_code);
 }
+
+/*
+ * RF PLL status (WLDIG_READONLY0) as sampled by the LMAC error event patch at
+ * the moment it raised the event. The register sits on the RPU RF bus, which
+ * the application core cannot reach, so firmware mirrors it into an unused
+ * LMAC stats field for us to pick up here.
+ */
+static void log_lmac_error_rf_pll_status(const char *func)
+{
+	static const struct lmac_error_stat_entry recovery_stats[] = {
+		{ "lp_recovery_trigger_cnt", LMAC_DBG_LP_RECOVERY_TRIGGER_CNT_ADDR },
+		{ "lp_recovery_fail_cnt", LMAC_DBG_LP_RECOVERY_FAIL_CNT_ADDR },
+		{ "hp_recovery_trigger_cnt", LMAC_DBG_HP_RECOVERY_TRIGGER_CNT_ADDR },
+		{ "hp_recovery_fail_cnt", LMAC_DBG_HP_RECOVERY_FAIL_CNT_ADDR },
+		{ "lp_unlock_at_phy_open_cnt",
+		  LMAC_DBG_LP_UNLOCK_AT_PHY_OPEN_CNT_ADDR },
+		{ "hp_unlock_at_phy_open_cnt",
+		  LMAC_DBG_HP_UNLOCK_AT_PHY_OPEN_CNT_ADDR },
+	};
+	unsigned int snapshot = sys_read32(LMAC_DBG_RF_PLL_STATUS_ADDR);
+	unsigned int pll_status = snapshot & ~RF_PLL_STATUS_SNAPSHOT_VALID_MASK;
+	size_t i;
+
+	if (!(snapshot & RF_PLL_STATUS_SNAPSHOT_VALID_MASK)) {
+		LOG_INF("%s: LMAC error RF PLL status: no snapshot taken", func);
+	} else {
+		LOG_INF("%s: LMAC error RF PLL status: 0x%08x", func, pll_status);
+		LOG_INF("%s:   sxhp_adpll_locked (bit 6): %u", func,
+			!!(pll_status & RF_PLL_STATUS_SXHP_ADPLL_LOCKED_MASK));
+		LOG_INF("%s:   sxlp_adpll_locked (bit 15): %u", func,
+			!!(pll_status & RF_PLL_STATUS_SXLP_ADPLL_LOCKED_MASK));
+		LOG_INF("%s:   adpll_locked (bit 6 | bit 15): %u", func,
+			!!(pll_status & (RF_PLL_STATUS_SXHP_ADPLL_LOCKED_MASK |
+					 RF_PLL_STATUS_SXLP_ADPLL_LOCKED_MASK)));
+	}
+
+	LOG_INF("%s: LMAC error RF PLL recovery stats:", func);
+	for (i = 0; i < ARRAY_SIZE(recovery_stats); i++) {
+		LOG_INF("%s:   %s: %u", func, recovery_stats[i].name,
+			sys_read32(recovery_stats[i].addr));
+	}
+}
+
+/*
+ * Dump the PHY/RF execution flow ring buffer, reordered oldest to newest so it
+ * reads as a call sequence. A frozen exec_flow_ptr across successive events
+ * means the PHY stopped executing entirely, and the last entry names where.
+ */
+static void log_lmac_error_phy_exec_flow(const char *func)
+{
+	uint8_t flow[LMAC_DBG_PHY_EXEC_FLOW_SIZE];
+	uint8_t ptr = sys_read8(LMAC_DBG_PHY_EXEC_FLOW_PTR_ADDR);
+	size_t i;
+
+	for (i = 0; i < LMAC_DBG_PHY_EXEC_FLOW_SIZE; i++) {
+		flow[i] = sys_read8(LMAC_DBG_PHY_EXEC_FLOW_ADDR +
+				    ((ptr + i) % LMAC_DBG_PHY_EXEC_FLOW_SIZE));
+	}
+
+	LOG_INF("%s:   phy_last_sig=%u phy_exec_ptr=%u", func,
+		sys_read8(LMAC_DBG_PHY_LAST_SIGNATURE_ADDR), ptr);
+	LOG_HEXDUMP_INF(flow, sizeof(flow), "phy exec flow (oldest first)");
+}
+
+/*
+ * Beacon reception and low-power RX state. Packed a few values per line: the
+ * error events repeat every 2.5 s and the log backend already drops messages
+ * at this rate.
+ */
+static void log_lmac_error_beacon_state(const char *func)
+{
+	LOG_INF("%s: LMAC error beacon state: rf_mode=%u pwr_sub_state=%u", func,
+		sys_read32(LMAC_DBG_CH_INFO_RF_MODE_ADDR),
+		sys_read32(LMAC_DBG_PWR_SUB_STATE_ADDR));
+	LOG_INF("%s:   rx_bcn_cnt=%u bcn_rcv_last_sec=%u bcn_rcv_cur_sec=%u", func,
+		sys_read32(LMAC_DBG_RX_BCN_CNT_ADDR),
+		sys_read32(LMAC_DBG_BCN_RCV_CNT_LAST_SEC_ADDR),
+		sys_read32(LMAC_DBG_BCN_RCV_CNT_CUR_SEC_ADDR));
+	LOG_INF("%s:   wait_for_bcn_cnt=%u wait_for_bcn_expired=%u", func,
+		sys_read32(LMAC_DBG_WAIT_FOR_BCN_CNT_ADDR),
+		sys_read32(LMAC_DBG_WAIT_FOR_BCN_EXPIRED_ADDR));
+	LOG_INF("%s:   bcn_delay_after_wakeup=%u lp2hp_bringup_time=%u", func,
+		sys_read32(LMAC_DBG_BCN_DELAY_AFTER_WAKEUP_ADDR),
+		sys_read32(LMAC_DBG_LP2HP_BRINGUP_TIME_ADDR));
+	LOG_INF("%s:   bet_isr=%u bet_bcn_abort=%u bet_bcn_rf_switch=%u "
+		"rf_mode_switch=%u", func,
+		sys_read32(LMAC_DBG_LP_RX_BET_ISR_ADDR),
+		sys_read32(LMAC_DBG_LP_RX_BET_BCN_ABORT_ADDR),
+		sys_read32(LMAC_DBG_LP_RX_BET_BCN_RF_SWITCH_ADDR),
+		sys_read32(LMAC_DBG_LP_RX_RF_MODE_SWITCH_ADDR));
+	LOG_INF("%s:   deagg_isr=%u rxisr_cnt=%u rxisr_dropped_cnt=%u", func,
+		sys_read32(LMAC_DBG_DEAGG_ISR_ADDR),
+		sys_read32(LMAC_DBG_LMAC_RXISR_CNT_ADDR),
+		sys_read32(LMAC_DBG_LMAC_RX_ISR_DROPPED_CNT_ADDR));
+	LOG_INF("%s:   abort_rx_after_len=0x%04x bet_sleep_ind=%u "
+		"bcn_miss_cnt=%u", func,
+		sys_read32(ABS_PMB_WLAN_MAC_CTRL_DEAGG_ABORT_RX_AFTER_LEN) &
+			PMB_WLAN_MAC_CTRL_DEAGG_ABORT_RX_AFTER_LEN_MASK,
+		sys_read8(LMAC_DBG_BET_SLEEP_INDICATION_ADDR),
+		sys_read32(LMAC_DBG_BCN_MISS_CNT_ADDR));
+	LOG_INF("%s:   boot_cnt=%u warm_boot_isr=%u try_sleep=%u", func,
+		sys_read32(LMAC_DBG_TOTAL_BOOT_CNT_ADDR),
+		sys_read32(LMAC_DBG_WARM_BOOT_TIMER_ISR_ADDR),
+		sys_read32(LMAC_DBG_TRY_TO_ENTER_SLEEP_ADDR));
+	LOG_INF("%s:   pwr_main_state=%u sleep_en=%u bet_en=%u cfg_bet_en=%u",
+		func,
+		sys_read32(LMAC_DBG_PWR_MAIN_STATE_ADDR),
+		sys_read32(LMAC_DBG_SLEEP_ENABLE_ADDR),
+		sys_read32(LMAC_DBG_BET_ENABLE_ADDR),
+		sys_read32(LMAC_DBG_CFG_BET_ENABLE_ADDR));
+	LOG_INF("%s:   sleep_cmd_in_task=%u ps_disabled=%u buf_pool_null=%u",
+		func,
+		sys_read32(LMAC_DBG_SLEEP_CMD_IN_LMAC_TASK_ADDR),
+		sys_read32(LMAC_DBG_WIFI_POWERSAVE_DISABLED_ADDR),
+		sys_read32(LMAC_DBG_INTERNAL_BUF_POOL_NULL_ADDR));
+	LOG_INF("%s:   sleep_fail: disable=%u ps_off=%u ftm=%u non_sta=%u "
+		"cmds=%u", func,
+		sys_read32(LMAC_DBG_SLEEP_DISABLE_CNT_ADDR),
+		sys_read32(LMAC_DBG_SLEEP_FAIL_PS_OFF_ADDR),
+		sys_read32(LMAC_DBG_SLEEP_FAIL_FTM_RESP_ADDR),
+		sys_read32(LMAC_DBG_SLEEP_FAIL_VIF_NON_STA_ADDR),
+		sys_read32(LMAC_DBG_SLEEP_FAIL_CMDS_PRESENT_ADDR));
+	log_lmac_error_phy_exec_flow(func);
+}
+
+static void log_lmac_error_rx_stats(const char *func)
+{
+	static const struct lmac_error_stat_entry fw_stats[] = {
+		{ "rx_mpdu_crc_fail_cnt", 0x28003544UL },
+		{ "rx_mpdu_crc_success_cnt", 0x28003548UL },
+		{ "rx_ofdm_crc_success_cnt", LMAC_DBG_RX_OFDM_CRC_SUCCESS_CNT_ADDR },
+		{ "rx_ofdm_crc_fail_cnt", LMAC_DBG_RX_OFDM_CRC_FAIL_CNT_ADDR },
+		{ "rx_dsss_crc_success_cnt", LMAC_DBG_RX_DSSS_CRC_SUCCESS_CNT_ADDR },
+		{ "rx_dsss_crc_fail_cnt", LMAC_DBG_RX_DSSS_CRC_FAIL_CNT_ADDR },
+	};
+	static const struct lmac_error_stat_entry hw_stats[] = {
+		{ "deagg_crc32pass_cnt", ABS_PMB_WLAN_MAC_CTRL_DEAGG_CRC32PASS_CNT },
+		{ "deagg_crc32fail_cnt", ABS_PMB_WLAN_MAC_CTRL_DEAGG_CRC32FAIL_CNT },
+		{ "deagg_dsss_crc32pass_cnt",
+		  ABS_PMB_WLAN_MAC_CTRL_DEAGG_DSSS_CRC32PASS_CNT },
+		{ "deagg_dsss_crc32fail_cnt",
+		  ABS_PMB_WLAN_MAC_CTRL_DEAGG_DSSS_CRC32FAIL_CNT },
+	};
+	size_t i;
+
+	LOG_INF("%s: LMAC error firmware RX CRC stats:", func);
+	for (i = 0; i < ARRAY_SIZE(fw_stats); i++) {
+		LOG_INF("%s:   %s: %u", func, fw_stats[i].name,
+			sys_read32(fw_stats[i].addr));
+	}
+
+	LOG_INF("%s: LMAC error hardware RX CRC stats:", func);
+	for (i = 0; i < ARRAY_SIZE(hw_stats); i++) {
+		LOG_INF("%s:   %s: %u", func, hw_stats[i].name,
+			sys_read32(hw_stats[i].addr));
+	}
+
+	log_lmac_error_rf_pll_status(func);
+	log_lmac_error_beacon_state(func);
+}
 #endif /* WIFI_NRF71_LOG_LEVEL >= NRF_WIFI_LOG_LEVEL_INF */
 
 
@@ -493,6 +655,7 @@ static enum nrf_wifi_status umac_event_sys_proc_events(struct nrf_wifi_fmac_dev_
 					lmac_error_stats_log,
 					sizeof(lmac_error_stats_log) /
 					sizeof(lmac_error_stats_log[0]));
+			log_lmac_error_rx_stats(__func__);
 			break;
 		default:
 			LOG_INF("%s: Error stats event: "

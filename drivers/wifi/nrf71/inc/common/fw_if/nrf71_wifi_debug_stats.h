@@ -1175,6 +1175,177 @@ struct nrf_wifi_rpu_debug_stats {
 } __NRF_WIFI_PKD;
 
 /**
+ * @brief LMAC RX CRC debug locations for error event diagnostics.
+ *
+ * Firmware counters live in LMAC VPR RAM (lmacDebugParams.rxStats).
+ * Hardware counters are WLAN MAC CTRL deaggregation registers.
+ */
+#define LMAC_DBG_RX_OFDM_CRC_SUCCESS_CNT_ADDR  0x2800354CUL
+#define LMAC_DBG_RX_OFDM_CRC_FAIL_CNT_ADDR     0x28003550UL
+#define LMAC_DBG_RX_DSSS_CRC_SUCCESS_CNT_ADDR  0x28003554UL
+#define LMAC_DBG_RX_DSSS_CRC_FAIL_CNT_ADDR     0x28003558UL
+
+#define ABS_PMB_WLAN_MAC_CTRL_DEAGG_CRC32PASS_CNT      0x4808E078UL
+#define ABS_PMB_WLAN_MAC_CTRL_DEAGG_CRC32FAIL_CNT      0x4808E07CUL
+#define ABS_PMB_WLAN_MAC_CTRL_DEAGG_DSSS_CRC32PASS_CNT 0x4808E0B8UL
+#define ABS_PMB_WLAN_MAC_CTRL_DEAGG_DSSS_CRC32FAIL_CNT 0x4808E0BCUL
+
+/**
+ * @brief RF PLL status snapshot taken by the LMAC error event patch.
+ *
+ * The RF register WLDIG_READONLY0 (0x480210C0) is not reachable from the
+ * application core, so assert_device_error_event_to_host_patch() reads it in
+ * firmware on every error event and mirrors it into lmacDebugParams.rxStats
+ * .unexpected_cnt, which ROM never writes. Bit 31 is not a WLDIG_READONLY0
+ * field; the patch sets it so an all-zero readback can be told apart from
+ * "no snapshot taken".
+ *
+ * Bit 6 is WLSXHP_ADPLL_PLL_LOCKED (high-power synthesiser), bit 15 is
+ * WLSXLP_ADPLL_PLL_LOCKED (low-power synthesiser). Only one synthesiser runs
+ * at a time, so the OR of the two is logged as well.
+ */
+#define LMAC_DBG_RF_PLL_STATUS_ADDR          0x2800360CUL
+
+#define RF_PLL_STATUS_SXHP_ADPLL_LOCKED_MASK 0x00000040UL
+#define RF_PLL_STATUS_SXLP_ADPLL_LOCKED_MASK 0x00008000UL
+#define RF_PLL_STATUS_SNAPSHOT_VALID_MASK    0x80000000UL
+
+/**
+ * @brief ADPLL recovery counters maintained by the RF driver.
+ *
+ * The first four are the standalone globals that invoke_pll_recovery()
+ * increments: trigger counts on every recovery attempt, fail counts when the
+ * attempt ends with the PLL still unlocked. Note that the identically named
+ * fields inside phy_rf_dbg_params_struct are never written by firmware and
+ * always read 0, so these addresses are used instead.
+ *
+ * The last two are phy_rf_dbg_params_struct.*_recovery_trigger_count_at_phy_
+ * open_end, bumped by rf_pll_lock_recheck() whenever adpll_lock_status()
+ * reports the PLL unlocked at the end of PHY open.
+ */
+#define LMAC_DBG_HP_RECOVERY_FAIL_CNT_ADDR       0x28000C24UL
+#define LMAC_DBG_HP_RECOVERY_TRIGGER_CNT_ADDR    0x28000C28UL
+#define LMAC_DBG_LP_RECOVERY_FAIL_CNT_ADDR       0x28000C2CUL
+#define LMAC_DBG_LP_RECOVERY_TRIGGER_CNT_ADDR    0x28000C30UL
+#define LMAC_DBG_LP_UNLOCK_AT_PHY_OPEN_CNT_ADDR  0x28001BECUL
+#define LMAC_DBG_HP_UNLOCK_AT_PHY_OPEN_CNT_ADDR  0x28001BF0UL
+
+/**
+ * @brief Beacon reception and low-power RX state, for beacon loss diagnostics.
+ *
+ * rf_mode is SYS_OPER_MODE_E: 0 = RX_ONLY_MODE (low power RX), 1 =
+ * TRX_NORMAL_MODE. pwr_sub_state is pwrSubState: 0 = PRE_INIT,
+ * 1 = WAIT_FOR_BEACON, 2 = WAIT_FOR_BEACON_FOREVER, 3 = WAIT_FOR_BCST_FRAME,
+ * 4 = WAIT_FOR_UCST_FRAME, 5 = WAIT_FOR_BCST_UCST_FRAME,
+ * 6 = WAIT_FOR_INACTIVITY, 7 = ATTEMPT_SLEEP_FROM_BCN,
+ * 8 = WAIT_FOR_UMAC_RESPONSE, 9 = TWT_IN_PROGRESS.
+ *
+ * bcn_delay_after_wakeup and lp2hp_bringup_time are microsecond timings
+ * measured by firmware; compare the latter against the hw_bringup_time
+ * (HW_DELAY) budget sent in the init command.
+ */
+#define LMAC_DBG_RX_BCN_CNT_ADDR                 0x28003660UL
+#define LMAC_DBG_WAIT_FOR_BCN_CNT_ADDR           0x28003664UL
+#define LMAC_DBG_WAIT_FOR_BCN_EXPIRED_ADDR       0x2800365CUL
+#define LMAC_DBG_LP2HP_BRINGUP_TIME_ADDR         0x28003708UL
+#define LMAC_DBG_BCN_DELAY_AFTER_WAKEUP_ADDR     0x28003714UL
+#define LMAC_DBG_BCN_RCV_CNT_LAST_SEC_ADDR       0x2800371CUL
+#define LMAC_DBG_BCN_RCV_CNT_CUR_SEC_ADDR        0x28003724UL
+
+#define LMAC_DBG_LP_RX_BET_ISR_ADDR              0x28003A30UL
+#define LMAC_DBG_LP_RX_BET_BCN_ABORT_ADDR        0x28003A34UL
+#define LMAC_DBG_LP_RX_BET_BCN_RF_SWITCH_ADDR    0x28003A38UL
+#define LMAC_DBG_LP_RX_RF_MODE_SWITCH_ADDR       0x28003A3CUL
+
+#define LMAC_DBG_CH_INFO_RF_MODE_ADDR            0x280045B8UL
+#define LMAC_DBG_PWR_SUB_STATE_ADDR              0x280047C0UL
+
+/**
+ * @brief BET early-abort state.
+ *
+ * On a beacon with TIM clear, bssBeaconIsr() sets ABORT_RX_AFTER_LEN to 1 to
+ * truncate the beacon and sets betSleepIndicationTrue. The register is only
+ * restored to 0xffffff by the RX ISR (lmac_rx.c), gated on that same flag. If
+ * the RX ISR does not run for the truncated frame, the register stays at 1 and
+ * every subsequent frame is aborted after one byte.
+ *
+ * abort_rx_after_len is a 16-bit field of a 32-bit register, so it reads as
+ * 0xffff when open and 0x0001 when the beacon abort is left armed.
+ * betSleepIndicationTrue is a single byte.
+ */
+#define LMAC_DBG_BET_SLEEP_INDICATION_ADDR       0x280047C5UL
+#define LMAC_DBG_BCN_MISS_CNT_ADDR               0x280046A4UL
+#define LMAC_DBG_DEAGG_ISR_ADDR                  0x28003530UL
+#define LMAC_DBG_LMAC_RXISR_CNT_ADDR             0x28003534UL
+#define LMAC_DBG_LMAC_RX_ISR_DROPPED_CNT_ADDR    0x28003538UL
+
+#define ABS_PMB_WLAN_MAC_CTRL_DEAGG_ABORT_RX_AFTER_LEN 0x4808E238UL
+#define PMB_WLAN_MAC_CTRL_DEAGG_ABORT_RX_AFTER_LEN_MASK 0x0000FFFFUL
+
+/**
+ * @brief Sleep/wake cycling and PHY execution flow, for the interrupt stall.
+ *
+ * During a beacon loss episode every RF and MAC interrupt counter freezes
+ * while the NWLOST timer keeps running. These distinguish "parked and not
+ * waking" from "waking but not detecting beacons": total_boot_cnt and
+ * warm_boot_timer_isr advance once per sleep/wake cycle.
+ *
+ * last_signature is the most recent PHY/RF function signature
+ * (phy_function_exec_flow_enum.h) and exec_flow_ptr indexes the 64-entry ring
+ * buffer at 0x28001BF4. Both are single bytes.
+ *
+ * pwr_main_state is pwrMainState; sleepEnable is 0 = SLEEP_DISABLE,
+ * 1 = SW_SLEEP_ENABLE, 2 = HW_SLEEP_ENABLE.
+ */
+#define LMAC_DBG_PWR_MAIN_STATE_ADDR             0x280047BCUL
+#define LMAC_DBG_SLEEP_ENABLE_ADDR               0x28004650UL
+#define LMAC_DBG_BET_ENABLE_ADDR                 0x280046A0UL
+#define LMAC_DBG_CFG_BET_ENABLE_ADDR             0x280047F0UL
+#define LMAC_DBG_TOTAL_BOOT_CNT_ADDR             0x2800364CUL
+#define LMAC_DBG_WARM_BOOT_TIMER_ISR_ADDR        0x28003650UL
+#define LMAC_DBG_TRY_TO_ENTER_SLEEP_ADDR         0x28003654UL
+#define LMAC_DBG_PHY_LAST_SIGNATURE_ADDR         0x28001C34UL
+#define LMAC_DBG_PHY_EXEC_FLOW_PTR_ADDR          0x28001C35UL
+
+/**
+ * @brief PHY/RF execution flow ring buffer.
+ *
+ * phy_rf_dbg_params_struct.function_exec_flow[64]. Each entry is one function
+ * signature, written as function_exec_flow[(exec_flow_ptr++) & 0x3F], so the
+ * newest entry is at index ((exec_flow_ptr - 1) & 0x3F) and the buffer reads
+ * oldest-first starting from exec_flow_ptr.
+ */
+#define LMAC_DBG_PHY_EXEC_FLOW_ADDR              0x28001BF4UL
+#define LMAC_DBG_PHY_EXEC_FLOW_SIZE              64
+
+/**
+ * @brief Why a sleep attempt was refused.
+ *
+ * postAssocSleep() bails out on sleepEnable == SLEEP_DISABLE
+ * (sleep_disable_cnt), on anyActiveStation() (wifi_powersave_disabled), or on
+ * an empty internal command pool (internal_buf_pool_null); otherwise it queues
+ * POST_ASSOC_SLEEP_CMD and sleep_command_in_lmac_task counts the handler
+ * dequeuing it. The sleep_attempt_fail_* counters are the refusal reasons
+ * inside the handler itself.
+ *
+ * Exactly one of these must be advancing whenever try_to_enter_sleep advances
+ * while total_boot_cnt stays frozen.
+ */
+#define LMAC_DBG_SLEEP_CMD_IN_LMAC_TASK_ADDR     0x28003640UL
+#define LMAC_DBG_SLEEP_DISABLE_CNT_ADDR          0x28003644UL
+#define LMAC_DBG_WIFI_POWERSAVE_DISABLED_ADDR    0x28003648UL
+#define LMAC_DBG_INTERNAL_BUF_POOL_NULL_ADDR     0x2800341CUL
+#define LMAC_DBG_SLEEP_FAIL_PS_OFF_ADDR          0x28003684UL
+#define LMAC_DBG_SLEEP_FAIL_FTM_RESP_ADDR        0x28003688UL
+#define LMAC_DBG_SLEEP_FAIL_VIF_NON_STA_ADDR     0x2800368CUL
+#define LMAC_DBG_SLEEP_FAIL_CMDS_PRESENT_ADDR    0x28003690UL
+
+struct lmac_error_stat_entry {
+	const char *name;
+	unsigned int addr;
+};
+
+/**
  * @}
  */
 #endif /* __NRF71_WIFI_STATS_H__ */

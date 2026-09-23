@@ -396,13 +396,21 @@ enum nrf_wifi_status umac_cmd_sys_lmac_tuning_params(
 	umac_cmd_data->params.ofdm_sifs_value = NRF_WIFI_LMAC_OFDM_SIFS_VALUE;
 	umac_cmd_data->params.dsss_sifs_value = NRF_WIFI_LMAC_DSSS_SIFS_VALUE;
 
+	/* Beacon early termination (BET) and low power RX. BET lets the RPU
+	 * abort the beacon reception after the TIM IE and sleep for the rest of
+	 * the beacon when nothing is buffered for the device. Low power RX adds
+	 * the RX only RF mode between TBTTs, which the beacon ISR switches to
+	 * TRX mode when the TIM does indicate buffered data, so it can only be
+	 * used with BET. BET on its own runs on top of the normal sleep mode,
+	 * with the RF left in TRX mode.
+	 */
+	umac_cmd_data->params.lp_rx_enable = 0;
 	umac_cmd_data->params.cfg_bet_enable = 0;
 #ifdef NRF_WIFI_LP_RX
 	umac_cmd_data->params.cfg_bet_enable = 1;
 	umac_cmd_data->params.lp_rx_enable = 1;
-#else
-	umac_cmd_data->params.lp_rx_enable = 0;
-	umac_cmd_data->params.cfg_bet_enable = 0;
+#elif defined(NRF_WIFI_BET)
+	umac_cmd_data->params.cfg_bet_enable = 1;
 #endif /* NRF_WIFI_LP_RX */
 
 	/* Internal tuning parameter for ACK timeout in the firmware. Accounts for
