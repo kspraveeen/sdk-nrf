@@ -35,6 +35,8 @@ manifest:
       url-base: https://github.com/boschsensortec
     - name: eembc
       url-base: https://github.com/eembc
+    - name: kspraveen
+      url-base: https://github.com/kspraveeen
 
   # If not otherwise specified, the projects below should be obtained
   # from the ncs remote.
@@ -150,7 +152,12 @@ manifest:
     - name: nrfxlib
       repo-path: sdk-nrfxlib
       path: nrfxlib
-      revision: pull/2283/head
+      remote: kspraveen
+      revision: e92fccb544feba77b8ba8ee4a1247f3bc09f633a
+      userdata:
+        ncs:
+          upstream-url: https://github.com/nrfconnect/sdk-nrfxlib
+          compare-by-default: true
     - name: trusted-firmware-m
       repo-path: sdk-trusted-firmware-m
       path: modules/tee/tf-m/trusted-firmware-m
